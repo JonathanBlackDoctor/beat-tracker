@@ -1,0 +1,19 @@
+{
+  "name": "beatkeeper",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "비트키퍼 — 밴드 퍼커션용 실시간 템포 보조 PWA (안드로이드/오프라인)",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "test:dsp": "node --experimental-strip-types tests/tempoEngine.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^5.4.10",
+    "vite-plugin-pwa": "^0.20.5"
+  }
+}
