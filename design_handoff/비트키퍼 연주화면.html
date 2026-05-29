@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>비트키퍼 — 연주 화면</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-180.png" />
+<meta name="theme-color" content="#0a0b0e" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0a0b0e; --bg2:#0e1016; --surface:#15171e; --surface2:#1c1f28;
+    --border:#282b35; --hair:rgba(255,255,255,0.07);
+    --text:#e9eaee; --text2:#9aa0aa; --dim:#6b7280;
+    --accent:#38bdf8; --accent-ink:#04141f; --accent-soft:rgba(56,189,248,0.14);
+    --warn:#f4c95f; --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:#0a0b0e;}
+  body{font-family:'Noto Sans KR',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+
+  /* ── performance screen shell ── */
+  .bk-screen{width:384px;height:812px;background:
+      radial-gradient(120% 70% at 50% -5%, #11141c 0%, var(--bg) 55%);
+    color:var(--text);display:flex;flex-direction:column;position:relative;overflow:hidden}
+  .bk-top{height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;flex:0 0 auto}
+  .bk-brand{font-weight:900;font-size:22px;letter-spacing:-.4px;display:flex;align-items:baseline;gap:9px}
+  .bk-brand span{font-size:9.5px;font-weight:700;letter-spacing:2.5px;color:var(--dim)}
+  .bk-icon{width:40px;height:40px;border-radius:11px;border:1px solid var(--border);background:var(--surface);color:var(--text2);display:grid;place-items:center;cursor:pointer}
+  .bk-icon svg{width:19px;height:19px}
+  .bk-statusline{min-height:26px;display:flex;align-items:center;justify-content:center;font-size:12.5px;color:var(--dim);flex:0 0 auto;padding:0 16px;text-align:center}
+  .bk-statusline.warn{color:var(--warn);font-weight:600}
+
+  .bk-inst{position:relative;width:384px;height:452px;flex:0 0 auto}
+  .bk-inst canvas{position:absolute;inset:0}
+  .bk-center{position:absolute;left:0;right:0;transform:translateY(-50%);text-align:center;pointer-events:none}
+  .bk-num{display:flex;align-items:baseline;gap:8px;justify-content:center;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+  .bk-num span{font-size:62px;font-weight:600;letter-spacing:-2px;line-height:1;color:var(--text)}
+  .bk-num i{font-style:normal;font-size:19px;font-weight:500;color:var(--text2)}
+  .bk-num-lg span{font-size:72px}
+  .bk-num-xl span{font-size:130px;letter-spacing:-4px}
+  .bk-bpmtag{font-size:12px;letter-spacing:4px;color:var(--text2);margin-top:4px;font-weight:600;font-family:'IBM Plex Mono'}
+  .bk-sub{margin-top:9px;font-size:14.5px;color:var(--text2);font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;letter-spacing:.2px}
+  .bk-stabwrap{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;width:248px}
+  .bk-stablbl{font-size:11.5px;color:var(--dim);white-space:nowrap}
+  .bk-stabtrack{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden}
+  .bk-stabfill{height:100%;border-radius:3px;background:linear-gradient(90deg,#2c91c9,#7dd3fc);box-shadow:0 0 10px rgba(56,189,248,.35);transition:width .3s ease}
+
+  .bk-controls{flex:1 1 auto;display:flex;flex-direction:column;gap:11px;padding:4px 16px 8px;justify-content:flex-end}
+  .bk-row{display:flex;gap:10px}
+  .bk-seg{flex:1;display:flex;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px;gap:4px}
+  .bk-seg-b{flex:1;height:44px;border:0;background:transparent;color:var(--text2);font-size:15px;font-weight:700;border-radius:9px;font-family:inherit;cursor:pointer;transition:.15s}
+  .bk-seg-b.on{background:var(--accent);color:var(--accent-ink)}
+  .bk-pill{flex:0 0 auto;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:700;font-size:15px;font-family:inherit;cursor:pointer;padding:0 22px;white-space:nowrap}
+  .bk-pill.on{background:var(--accent-soft);border-color:rgba(56,189,248,.5);color:var(--accent)}
+  .bk-songnav{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:7px 9px}
+  .bk-nav-arrow{width:50px;height:50px;border-radius:10px;border:0;background:var(--surface2);color:var(--text);font-size:28px;line-height:0;cursor:pointer;flex:0 0 auto}
+  .bk-songinfo{flex:1;text-align:center}
+  .bk-songname{font-weight:700;font-size:16px}
+  .bk-songmeta{font-size:12px;color:var(--text2);font-family:'IBM Plex Mono';margin-top:1px}
+  .bk-transport{}
+  .bk-tbtn{flex:1;min-height:58px;border-radius:13px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:700;font-size:13.5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;font-family:inherit}
+  .bk-tbtn svg{width:22px;height:22px;stroke:var(--text2)}
+  .bk-tbtn.active{border-color:rgba(56,189,248,.5);color:var(--accent)}
+  .bk-tbtn.active svg{stroke:var(--accent)}
+  .bk-play{flex:1.5;min-height:58px;border-radius:13px;border:0;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;font-family:inherit;box-shadow:0 6px 22px rgba(56,189,248,.30);white-space:nowrap}
+  .bk-play svg{width:21px;height:21px}
+  .bk-play.on{background:var(--surface2);color:var(--text);box-shadow:none;border:1px solid var(--border)}
+  .bk-tabs{height:60px;display:flex;border-top:1px solid var(--hair);background:var(--bg2);flex:0 0 auto}
+  .bk-tab{flex:1;border:0;background:transparent;color:var(--dim);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10.5px;font-weight:600;cursor:pointer;font-family:inherit}
+  .bk-tab svg{width:21px;height:21px}
+  .bk-tab.on{color:var(--accent)}
+
+  /* ── sheets (states / wordmarks / icons) ── */
+  .bk-sheet{background:var(--bg);width:100%;height:100%;box-sizing:border-box;color:var(--text);font-family:'Noto Sans KR',system-ui}
+  .bk-sheet.states{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:24px;align-content:center}
+  .bk-statecard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 10px 16px;display:flex;flex-direction:column;align-items:center}
+  .bk-mini{position:relative;width:196px;height:196px}
+  .bk-mini canvas{position:absolute;inset:0}
+  .bk-mini-num{position:absolute;top:72px;left:0;right:0;text-align:center;font-family:'IBM Plex Mono';font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text)}
+  .bk-statelabel{font-weight:700;font-size:15.5px;margin-top:4px;white-space:nowrap}
+  .bk-statedesc{font-size:11.5px;color:var(--text2);margin-top:3px;text-align:center;text-wrap:pretty;line-height:1.4}
+
+  .bk-sheet.wm{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:28px;align-content:center}
+  .bk-wm{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:30px 16px 24px;display:flex;flex-direction:column;align-items:center;text-align:center}
+  .bk-wm.rec{border-color:rgba(56,189,248,.55);box-shadow:0 8px 34px rgba(56,189,248,.13)}
+  .bk-wm-rec{position:absolute;top:12px;right:12px;font-size:10px;font-weight:800;color:var(--accent-ink);background:var(--accent);padding:3px 9px;border-radius:99px;letter-spacing:.5px;white-space:nowrap}
+  .bk-wm-mark{width:46px;height:46px;margin-bottom:12px;position:relative}
+  .bk-wm-mark canvas{position:absolute;inset:0}
+  .bk-wm-kr{font-size:31px;font-weight:900;letter-spacing:-.5px;line-height:1.05;white-space:nowrap}
+  .bk-wm-latin{font-size:11px;font-weight:700;letter-spacing:3.5px;color:var(--text2);margin-top:8px}
+  .bk-wm-tag{font-size:12px;color:var(--dim);margin-top:12px;text-wrap:pretty;line-height:1.5}
+
+  .bk-sheet.icons{display:flex;align-items:center;justify-content:center;gap:24px;padding:26px;flex-wrap:nowrap}
+  .bk-iconwrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+  .bk-icontile{width:132px;height:132px;border-radius:30px;background:radial-gradient(circle at 50% 36%,#15181f,#0a0b0e);border:1px solid var(--border);position:relative;overflow:hidden}
+  .bk-icontile.mask{border-radius:50%}
+  .bk-icontile canvas{position:absolute;inset:0}
+  .bk-iconlbl{font-size:12px;color:var(--text2);white-space:nowrap}
+
+  /* ── 공연 모드 (세로 전체화면) ── */
+  .bk-stage{width:384px;height:812px;position:relative;background:radial-gradient(130% 80% at 50% 36%,#0e1118 0%,#060709 72%);color:var(--text);overflow:hidden;cursor:pointer}
+  .bk-stage>canvas{position:absolute;inset:0}
+  .bk-stage-num{position:absolute;top:300px;left:0;right:0;transform:translateY(-50%);display:flex;align-items:baseline;justify-content:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;pointer-events:none}
+  .bk-stage-num span{font-size:94px;font-weight:600;letter-spacing:-4px;line-height:.9;color:var(--text)}
+  .bk-stage-num i{font-style:normal;font-size:21px;color:var(--text2);font-weight:500}
+  .bk-stage-sub{position:absolute;top:374px;left:0;right:0;text-align:center;font-family:'IBM Plex Mono';font-size:18px;color:var(--text2);font-variant-numeric:tabular-nums;pointer-events:none}
+  .bk-stage-stab{position:absolute;top:636px;left:96px;right:96px;height:6px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;pointer-events:none}
+  .bk-stage-hint{position:absolute;bottom:34px;left:0;right:0;text-align:center;font-size:13px;color:var(--dim);pointer-events:none}
+  .bk-stage-bar{position:absolute;left:16px;right:16px;bottom:78px;display:flex;gap:10px;padding:10px;background:rgba(18,20,28,0.94);border:1px solid var(--border);border-radius:16px;backdrop-filter:blur(8px);opacity:0;transform:translateY(12px);transition:.25s ease;pointer-events:none}
+  .bk-stage-bar.show{opacity:1;transform:none;pointer-events:auto}
+  .bk-sb{flex:1;min-height:52px;border-radius:11px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-weight:700;font-size:15px;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+  .bk-sb svg{width:18px;height:18px}
+  .bk-sb.wide{flex:1.4;background:var(--accent);color:var(--accent-ink);border:0}
+  .bk-sb.exit{flex:1.4;color:var(--text2)}
+
+  /* ── 가로 (landscape) ── */
+  .bk-land{width:812px;height:384px;display:flex;background:radial-gradient(120% 110% at 28% 42%,#11141c,var(--bg));color:var(--text);overflow:hidden}
+  .bk-land.perform{background:radial-gradient(120% 110% at 34% 50%,#0e1118,#060709);cursor:pointer}
+  .bk-land-l{position:relative;flex:0 0 auto;width:420px}
+  .bk-land.perform .bk-land-l{width:440px}
+  .bk-land-l canvas{position:absolute;inset:0}
+  .bk-land-r{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 46px 0 8px;gap:14px}
+  .bk-land.perform .bk-land-r{padding-right:58px}
+  .bk-land-brand{font-weight:900;font-size:20px;letter-spacing:-.3px;display:flex;align-items:baseline;gap:8px}
+  .bk-land-brand span{font-size:9px;font-weight:700;letter-spacing:2.5px;color:var(--dim)}
+  .bk-land-num{position:absolute;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+  .bk-land-num .bk-num{justify-content:center}
+  .bk-land-num .bk-num span{font-size:56px;letter-spacing:-2px}
+  .bk-land-num .bk-num i{font-size:17px}
+  .bk-land-num.big .bk-num span{font-size:70px}
+  .bk-land-num.big .bk-num i{font-size:20px}
+  .bk-land-num .bk-sub{margin-top:6px;font-size:14px}
+  .bk-land-ctrl{display:flex;gap:10px;margin-top:4px}
+  .bk-land-ctrl .bk-tbtn,.bk-land-ctrl .bk-play{min-height:60px;flex:1}
+
+  /* ── 공통 화면 크롬 (셋리스트/편집/설정) ── */
+  .bk-topbar{height:56px;display:flex;align-items:center;padding:0 12px;flex:0 0 auto;border-bottom:1px solid var(--hair)}
+  .bk-tb-side{flex:1;display:flex;align-items:center}
+  .bk-tb-side.right{justify-content:flex-end}
+  .bk-tb-title{font-weight:800;font-size:18px;letter-spacing:-.2px}
+  .bk-tb-text{display:flex;align-items:center;gap:3px;background:none;border:0;color:var(--text);font-family:inherit;font-weight:700;font-size:15px;cursor:pointer;padding:6px}
+  .bk-tb-text svg{width:20px;height:20px}
+  .bk-tb-text.accent{color:var(--accent)}
+  .bk-scroll{flex:1 1 auto;overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .bk-chiprow{display:flex;gap:8px;padding:12px 16px 4px;flex:0 0 auto}
+  .bk-chip{padding:8px 16px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-weight:700;font-size:14px;font-family:inherit;cursor:pointer;white-space:nowrap}
+  .bk-chip.on{background:var(--accent-soft);border-color:rgba(56,189,248,.5);color:var(--accent)}
+  .bk-listmeta{font-size:13px;color:var(--dim);padding:2px 2px 4px}
+
+  .bk-lrow{display:flex;align-items:center;gap:12px;min-height:64px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:13px;cursor:pointer;transition:.12s}
+  .bk-lrow.active{border-color:rgba(56,189,248,.55);background:var(--accent-soft)}
+  .bk-grip2{color:var(--dim);display:flex;flex:0 0 auto}
+  .bk-grip2 svg{width:20px;height:20px}
+  .bk-lrow-main{flex:1;min-width:0}
+  .bk-lrow-title{font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bk-lrow-sub{font-size:12.5px;color:var(--text2);font-family:'IBM Plex Mono';margin-top:2px}
+  .bk-rowplay{width:44px;height:44px;border-radius:50%;background:var(--surface2);color:var(--text2);display:grid;place-items:center;flex:0 0 auto}
+  .bk-rowplay svg{width:18px;height:18px}
+  .bk-rowplay.on{background:var(--accent);color:var(--accent-ink)}
+  .bk-chev{color:var(--dim);font-size:22px;padding-right:4px}
+  .bk-addrow{display:flex;align-items:center;justify-content:center;gap:8px;min-height:54px;border-radius:13px;border:1.5px dashed var(--border);background:transparent;color:var(--text2);font-weight:700;font-size:15px;font-family:inherit;cursor:pointer;margin-top:2px}
+  .bk-addrow svg{width:20px;height:20px}
+
+  /* fields / inputs */
+  .bk-field{display:flex;align-items:center;gap:12px;min-height:54px;padding:8px 14px;background:var(--surface);border:1px solid var(--border);border-radius:13px}
+  .bk-field.stack{flex-direction:column;align-items:stretch;gap:10px;padding:14px}
+  .bk-field-l{display:flex;flex-direction:column;gap:2px;flex:1}
+  .bk-field-label{font-weight:700;font-size:15px;display:flex;align-items:center;gap:7px}
+  .bk-field-hint{font-size:12px;color:var(--text2);font-family:'IBM Plex Mono'}
+  .bk-field-ctrl{flex:0 0 auto}
+  .bk-field.stack .bk-field-label{flex:none}
+  .bk-field.stack .bk-field-ctrl{width:100%}
+  .bk-field-static{color:var(--text2);font-size:15px}
+  .bk-input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:11px;color:var(--text);font-family:inherit;font-size:16px;font-weight:600;padding:13px 14px;outline:none}
+  .bk-input:focus{border-color:rgba(56,189,248,.55)}
+  .bk-textarea{resize:none;line-height:1.5;font-weight:500}
+  .bk-grouplabel{font-size:12px;font-weight:700;letter-spacing:.4px;color:var(--dim);text-transform:none;padding:12px 4px 2px}
+  .bk-dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .bk-dot.green{background:#4fd1a5}.bk-dot.yellow{background:#f4c95f}
+
+  .bk-bpmset{display:flex;flex-direction:column;gap:12px}
+  .bk-bpmways{display:flex;gap:10px}
+  .bk-waybtn{flex:1;min-height:50px;border-radius:11px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-weight:700;font-size:14px;font-family:inherit;cursor:pointer}
+  .bk-waybtn.on,.bk-waybtn.live{background:var(--accent-soft);border-color:rgba(56,189,248,.5);color:var(--accent)}
+
+  /* toggle */
+  .bk-toggle{width:52px;height:31px;border-radius:99px;border:0;background:var(--surface2);position:relative;cursor:pointer;transition:.2s;padding:0}
+  .bk-toggle.on{background:var(--accent)}
+  .bk-toggle-knob{position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .bk-toggle.on .bk-toggle-knob{left:24px}
+
+  /* segmented (generic) */
+  .bk-seg2{display:inline-flex;background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:3px;gap:3px}
+  .bk-seg2.full{display:flex;width:100%}
+  .bk-seg2-b{min-width:48px;min-height:40px;padding:0 14px;border:0;background:transparent;color:var(--text2);font-weight:700;font-size:14px;border-radius:8px;font-family:inherit;cursor:pointer;flex:1;white-space:nowrap}
+  .bk-seg2-b.on{background:var(--accent);color:var(--accent-ink)}
+
+  /* stepper */
+  .bk-stepper{display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:4px}
+  .bk-stepper button{width:46px;height:46px;border-radius:9px;border:0;background:var(--surface2);color:var(--text);font-size:26px;line-height:0;cursor:pointer;font-family:inherit}
+  .bk-stepper-val{min-width:84px;text-align:center;font-family:'IBM Plex Mono';font-size:30px;font-weight:600;font-variant-numeric:tabular-nums}
+  .bk-stepper-val i{font-style:normal;font-size:14px;color:var(--text2);margin-left:3px}
+
+  /* slider */
+  .bk-slider{-webkit-appearance:none;width:100%;height:6px;border-radius:99px;outline:none;
+    background:linear-gradient(90deg,var(--accent) var(--pct,50%),rgba(255,255,255,0.10) var(--pct,50%))}
+  .bk-slider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px rgba(56,189,248,.25),0 1px 4px rgba(0,0,0,.4);cursor:pointer}
+  .bk-slider::-moz-range-thumb{width:22px;height:22px;border:0;border-radius:50%;background:#fff;cursor:pointer}
+
+  /* ── docs (animation spec / tokens / components) ── */
+  .bk-doc{background:var(--bg);width:100%;height:100%;box-sizing:border-box;color:var(--text);font-family:'Noto Sans KR',system-ui;padding:26px 28px;overflow:hidden}
+  .bk-doc-h{font-size:13px;font-weight:800;letter-spacing:.3px;color:var(--text2);margin-bottom:12px}
+  .bk-doc-row{display:flex;gap:26px;align-items:center;margin-bottom:22px}
+  .bk-doc-demo{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .bk-doc-demo canvas{width:184px;height:184px}
+  .bk-doc-cap{font-size:12px;color:var(--dim);text-align:center;max-width:300px;text-wrap:pretty;line-height:1.5}
+  .bk-doc-graph{display:flex;flex-direction:column;gap:8px}
+  .bk-spectable{width:100%;border-collapse:collapse;font-size:13px}
+  .bk-spectable th{text-align:left;color:var(--dim);font-weight:700;font-size:11px;padding:8px 10px;border-bottom:1px solid var(--border)}
+  .bk-spectable td{padding:9px 10px;border-bottom:1px solid var(--hair)}
+  .bk-spectable td.mono,.bk-spectable .mono{font-family:'IBM Plex Mono';color:var(--accent)}
+  .bk-spectable td.dim{color:var(--text2)}
+
+  .bk-swatches{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+  .bk-swatch-chip{height:54px;border-radius:11px;border:1px solid var(--hair);margin-bottom:6px}
+  .bk-swatch-name{font-size:12px;font-weight:700}
+  .bk-swatch-hex{font-size:11px;color:var(--text2);font-family:'IBM Plex Mono'}
+  .bk-typegrid{display:flex;flex-direction:column;gap:2px}
+  .bk-typerow{display:flex;align-items:center;gap:18px;padding:8px 4px;border-bottom:1px solid var(--hair)}
+  .bk-type-eg{min-width:120px;color:var(--text);line-height:1}
+  .bk-type-name{flex:1;font-weight:700;font-size:14px}
+  .bk-type-spec{font-size:12px;color:var(--text2)}
+  .bk-tokmeta{margin-top:14px;font-size:13px;color:var(--text2)}
+  .bk-tokmeta b{color:var(--text);font-family:'IBM Plex Mono'}
+
+  .bk-comp{display:flex;gap:30px}
+  .bk-comp-col{flex:1;display:flex;flex-direction:column;gap:12px}
+  .bk-comp-h{font-size:12px;font-weight:800;color:var(--dim);margin-top:8px}
+  .bk-comp-rowwrap{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .bk-dotsdemo{display:flex;gap:14px;align-items:center;padding:6px 2px}
+  .bk-bd{width:11px;height:11px;border-radius:50%;background:rgba(255,255,255,0.16)}
+  .bk-bd.on{background:var(--text);box-shadow:0 0 10px rgba(233,234,238,.5)}
+  .bk-bd.accent{box-shadow:0 0 0 3.5px rgba(255,255,255,0.18)}
+</style>
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" fill="#0a0b0e"/>
+    <circle cx="50" cy="50" r="22" fill="none" stroke="#38bdf8" stroke-width="3"/>
+    <circle cx="50" cy="50" r="5" fill="#38bdf8"/>
+  </svg>
+</template>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="bk-core.jsx"></script>
+<script type="text/babel" src="bk-inst-core.jsx"></script>
+<script type="text/babel" src="bk-draw.jsx"></script>
+<script type="text/babel" src="bk-inst-a.jsx"></script>
+<script type="text/babel" src="bk-ui.jsx"></script>
+<script type="text/babel" src="bk-screen.jsx"></script>
+<script type="text/babel" src="bk-stage.jsx"></script>
+<script type="text/babel" src="bk-screens2.jsx"></script>
+<script type="text/babel" src="bk-extras.jsx"></script>
+<script type="text/babel" src="bk-specs.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard, DCPostIt } = window;
+const { PerformanceScreen, StagePerform, LandView, AppIcon, StateCard } = window;
+const { SetlistScreen, SongEditorScreen, SettingsScreen, AnimSpec, TokenSheet, ComponentSheet } = window;
+
+function App(){
+  return (
+    <DesignCanvas>
+      <DCSection id="main" title="비트키퍼 — 연주 화면 (세로)" subtitle="순환 링 확정안 · 실시간 박동 (목표 120 · 4/4). 마이크·재생·프리·측정 토글 동작, [공연] 누르면 전체화면 전환">
+        <DCPostIt>
+          확정: 순환 링 · 이름 ‘비트키퍼’ · 아이콘 ‘파동’.{'\n\n'}
+          판독 위계:{'\n'}
+          ① 링 색 = 드리프트(초록≤1.5 · 노랑≤4 · 빨강>4){'\n'}
+          ② 바늘 위치 = 앞섬/처짐 (왼쪽 느림 · 오른쪽 빠름){'\n'}
+          ③ 큰 BPM 숫자 + 목표·Δ{'\n\n'}
+          [공연] 버튼 → 전체화면. [마이크] → 권한 상태 토글.
+        </DCPostIt>
+        <DCArtboard id="portrait" label="세로 · 일반" width={384} height={812}>
+          <PerformanceScreen variant="concentric" target={120} meter="4/4" seed={0.3} />
+        </DCArtboard>
+        <DCArtboard id="portrait-perm" label="세로 · 마이크 권한 필요" width={384} height={812}>
+          <PerformanceScreen variant="concentric" target={120} meter="4/4" seed={1.6} status="permission" />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="perform" title="공연 모드 · 세로 (전체화면)" subtitle="컨트롤을 숨기고 링·BPM·바늘을 최대 크기로. 화면을 탭하면 컨트롤이 잠깐 나타남">
+        <DCArtboard id="stage-p" label="공연 모드 · 세로" width={384} height={812}>
+          <StagePerform target={120} meter="4/4" seed={0.3} />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="land" title="가로 (landscape)" subtitle="BPM 숫자는 링 안쪽 중앙. 우측에 안정도·컨트롤. 공연 모드는 컨트롤을 숨김">
+        <DCArtboard id="land-normal" label="가로 · 일반" width={812} height={384}>
+          <LandView target={120} meter="4/4" seed={0.3} />
+        </DCArtboard>
+        <DCArtboard id="land-perform" label="가로 · 공연 모드" width={812} height={384}>
+          <LandView target={120} meter="4/4" seed={2.4} perform />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="screens" title="셋리스트 · 곡 편집 · 설정" subtitle="같은 다크 시스템 · 큰 탭 타깃(≥52px). 토글·세그먼트·슬라이더·탭템포 모두 동작">
+        <DCArtboard id="setlist" label="셋리스트" width={384} height={812}>
+          <SetlistScreen />
+        </DCArtboard>
+        <DCArtboard id="editor" label="곡 편집" width={384} height={812}>
+          <SongEditorScreen />
+        </DCArtboard>
+        <DCArtboard id="settings" label="설정" width={384} height={812}>
+          <SettingsScreen />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="states" title="펄스 링 상태 변형" subtitle="측정 전 · 드리프트 3존 · 신호 없음 · 권한 필요">
+        <DCArtboard id="state-sheet" label="상태 6종" width={740} height={648}>
+          <div className="bk-sheet states">
+            <StateCard status="measuring" label="측정 중…" desc="신뢰도 도달 전 · 4~8박 수집" />
+            <StateCard status="live" force={{detected:120.5, delta:0.6, zone:'green', stability:0.88}} label="일치 (초록)" desc="|Δ| ≤ 1.5 BPM · 안정" />
+            <StateCard status="live" force={{detected:123, delta:3, zone:'yellow', stability:0.55}} label="주의 (노랑)" desc="1.5 < |Δ| ≤ 4 · 앞섬" />
+            <StateCard status="live" force={{detected:114, delta:-6, zone:'red', stability:0.3}} label="벗어남 (빨강)" desc="|Δ| > 4 · 처짐" />
+            <StateCard status="nosignal" label="신호 없음" desc="박자 불명확 · 신뢰도 미달" />
+            <StateCard status="permission" label="마이크 권한 필요" desc="마이크 버튼을 눌러 허용" />
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="anim" title="펄스 링 박동 — 애니메이션 사양" subtitle="개발자가 Canvas로 구현하도록 수치 명시. 시각은 오디오 클릭과 동일 타임스탬프에 동기">
+        <DCArtboard id="anim-sheet" label="모션 스펙" width={700} height={520}>
+          <AnimSpec />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="tokens" title="디자인 토큰" subtitle="색 · 타이포 · 간격 — 단일 출처">
+        <DCArtboard id="token-sheet" label="토큰" width={720} height={430}>
+          <TokenSheet />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="comp" title="컴포넌트" subtitle="버튼 · 세그먼트 · 토글 · 슬라이더 · 스테퍼 · 리스트 · 안정도 · 박자 점">
+        <DCArtboard id="comp-sheet" label="컴포넌트" width={720} height={360}>
+          <ComponentSheet />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="icon" title="앱 아이콘 — 파동 (확정)" subtitle="다크 · 시안 발광. 실제 PNG 에셋(192/512/maskable/apple-touch)은 assets/icons/ 에 생성됨">
+        <DCArtboard id="icon-sheet" label="파동 아이콘" width={420} height={224}>
+          <div className="bk-sheet icons">
+            <AppIcon kind="dot" label="파동 · 기본" />
+            <AppIcon kind="dot" label="maskable (원형)" maskable />
+          </div>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
