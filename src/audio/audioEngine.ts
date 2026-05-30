@@ -196,8 +196,9 @@ export class AudioEngine {
     return this.scheduler?.isRunning ?? false;
   }
 
-  /** 자동 인식: 몇 초 듣고 음악적 BPM 추정(프리 모드) */
-  async captureTempo(ms = 4500): Promise<number | null> {
+  /** 자동 인식: 몇 초 듣고 음악적 BPM 추정(프리 모드).
+   *  락온 최소 ~3초이므로 충분한 여유를 두고, 미락온 시 최신 원시 추정(rawBpm)으로 폴백. */
+  async captureTempo(ms = 5500): Promise<number | null> {
     const state = await this.enableMic();
     if (state !== 'granted' || !this.tracker) return null;
     await this.resume();
@@ -208,7 +209,8 @@ export class AudioEngine {
     this.measuring = true;
     this.applyMeasuringToWorklet();
     await new Promise((r) => setTimeout(r, ms));
-    const bpm = this.tracker.getState().detected;
+    const st = this.tracker.getState();
+    const bpm = st.detected > 0 ? st.detected : st.rawBpm;
     // 복원
     this.tracker.setTarget(prevTarget);
     this.tracker.reset();
