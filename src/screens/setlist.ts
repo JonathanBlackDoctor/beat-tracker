@@ -1,6 +1,6 @@
-// 비트키퍼 — 셋리스트 화면 (브리프 §4.2)
+// 비트키퍼 — 셋리스트 화면 (브리프 §4.2 · 확정 디자인: design_handoff bk-screens2)
 import { store } from '../state/store.ts';
-import { el, clear, toast, openSheet, promptText, confirmAction } from '../ui.ts';
+import { el, clear, toast, openSheet, promptText, confirmAction, icon, ICONS } from '../ui.ts';
 import type { AppCtx, ScreenController } from '../ui.ts';
 import type { Song } from '../types.ts';
 
@@ -10,10 +10,10 @@ function songMeta(s: Song): string {
 }
 
 export function createSetlistScreen(app: AppCtx): ScreenController {
-  const header = el('div', { class: 'card', style: { padding: '12px', marginBottom: '12px' } });
+  const chipRow = el('div', { class: 'chiprow' });
+  const metaRow = el('div', { class: 'row', style: { padding: '2px 4px' } });
   const listEl = el('div', { class: 'list' });
-  const footer = el('div', { class: 'row', style: { marginTop: '14px' } });
-  const scroll = el('div', { class: 'scroll' }, header, el('div', { class: 'section-title' }, '곡 목록'), listEl, footer);
+  const scroll = el('div', { class: 'scroll' }, chipRow, metaRow, listEl);
   const root = el('div', { class: 'screen' }, scroll);
   let unsub: (() => void) | null = null;
 
@@ -52,25 +52,30 @@ export function createSetlistScreen(app: AppCtx): ScreenController {
     if (active) void store.setSetlistOrder(active.id, ids);
   }
 
-  function renderHeader() {
-    clear(header);
+  // 셋리스트 칩 + 새 셋리스트 추가 칩
+  function renderChips() {
+    clear(chipRow);
     const active = store.getActiveSetlist();
-    const select = el('select', {
-      onChange: (e: Event) => store.setActiveSetlist((e.target as HTMLSelectElement).value),
-    }) as HTMLSelectElement;
     for (const sl of store.setlists) {
-      const opt = el('option', { value: sl.id }, `${sl.name} (${sl.songIds.length})`) as HTMLOptionElement;
-      if (active && sl.id === active.id) opt.selected = true;
-      select.appendChild(opt);
+      const on = active && sl.id === active.id;
+      chipRow.append(
+        el('button', { class: 'tab-chip' + (on ? ' is-on' : ''), onClick: () => store.setActiveSetlist(sl.id) }, `${sl.name} (${sl.songIds.length})`),
+      );
     }
-    const actions = el(
-      'div',
-      { class: 'row', style: { marginTop: '10px' } },
-      el('button', { class: 'btn btn--ghost', style: { flex: '1' }, onClick: renameSetlist }, '이름변경'),
-      el('button', { class: 'btn btn--ghost', style: { flex: '1' }, onClick: newSetlist }, '+ 새 셋리스트'),
-      el('button', { class: 'btn btn--danger', onClick: deleteSetlist }, '삭제'),
+    const addChip = el('button', { class: 'tab-chip', title: '새 셋리스트', onClick: newSetlist });
+    addChip.append(icon(ICONS.plus, { sw: 2 }));
+    chipRow.append(addChip);
+  }
+
+  function renderMeta() {
+    clear(metaRow);
+    const active = store.getActiveSetlist();
+    const count = active ? active.songIds.length : 0;
+    metaRow.append(
+      el('div', { class: 'item__meta', style: { flex: '1' } }, `${count}곡`),
+      el('button', { class: 'btn btn--ghost', style: { minHeight: '40px', padding: '0 12px', fontSize: '13px' }, onClick: renameSetlist }, '이름변경'),
+      el('button', { class: 'btn btn--ghost', style: { minHeight: '40px', padding: '0 12px', fontSize: '13px', color: 'var(--red)' }, onClick: deleteSetlist }, '삭제'),
     );
-    header.append(el('label', { style: { fontSize: '13px', color: 'var(--muted)' } }, '활성 셋리스트'), select, actions);
   }
 
   async function renameSetlist() {
@@ -98,35 +103,47 @@ export function createSetlistScreen(app: AppCtx): ScreenController {
     }
   }
 
+  function iconBtn(name: keyof typeof ICONS, title: string, onClick: () => void): HTMLElement {
+    const b = el('button', { class: 'iconbtn-sq', title, onClick });
+    b.append(icon(ICONS[name], { sw: 1.8 }));
+    return b;
+  }
+
   function renderList() {
     clear(listEl);
     const active = store.getActiveSetlist();
     if (!active || active.songIds.length === 0) {
       listEl.append(el('div', { class: 'empty' }, '곡이 없습니다. 아래 “곡 추가”로 담아보세요.'));
-      return;
+    } else {
+      for (const id of active.songIds) {
+        const song = store.getSong(id);
+        if (!song) continue;
+        const handle = el('div', { class: 'handle', title: '드래그로 순서 변경' });
+        handle.append(icon(ICONS.grip, { sw: 2 }));
+        handle.addEventListener('pointerdown', (e) => onHandleDown(e as PointerEvent, item));
+        const info = el(
+          'div',
+          { class: 'item__main', onClick: () => app.navigate('performance', { songId: song.id }) },
+          el('div', { class: 'item__title' }, song.name),
+          el('div', { class: 'item__meta' }, songMeta(song)),
+        );
+        const actions = el(
+          'div',
+          { class: 'item__actions' },
+          iconBtn('edit', '편집', () => app.navigate('editor', { songId: song.id })),
+          iconBtn('copy', '복제', () => duplicate(song.id)),
+          iconBtn('close', '목록에서 빼기', () => removeFromList(song.id)),
+        );
+        const play = el('button', { class: 'perf__arrow', style: { width: '44px', height: '44px', borderRadius: '50%', fontSize: '0' }, title: '연주', onClick: () => app.navigate('performance', { songId: song.id }) });
+        play.append(icon(ICONS.play, { fill: 'currentColor', stroke: 'none' }));
+        const item = el('div', { class: 'item', dataset: { id: song.id } }, handle, info, actions, play);
+        listEl.append(item);
+      }
     }
-    for (const id of active.songIds) {
-      const song = store.getSong(id);
-      if (!song) continue;
-      const handle = el('div', { class: 'handle', title: '드래그로 순서 변경' }, '☰');
-      handle.addEventListener('pointerdown', (e) => onHandleDown(e as PointerEvent, item));
-      const info = el(
-        'div',
-        { class: 'item__main', onClick: () => app.navigate('performance', { songId: song.id }) },
-        el('div', { class: 'item__title' }, song.name),
-        el('div', { class: 'item__meta' }, songMeta(song)),
-      );
-      const actions = el(
-        'div',
-        { class: 'item__actions' },
-        el('button', { class: 'btn btn--ghost iconbtn', title: '연주', onClick: () => app.navigate('performance', { songId: song.id }) }, '▶'),
-        el('button', { class: 'btn btn--ghost iconbtn', title: '편집', onClick: () => app.navigate('editor', { songId: song.id }) }, '✎'),
-        el('button', { class: 'btn btn--ghost iconbtn', title: '복제', onClick: () => duplicate(song.id) }, '⧉'),
-        el('button', { class: 'btn btn--ghost iconbtn', title: '목록에서 빼기', onClick: () => removeFromList(song.id) }, '✕'),
-      );
-      const item = el('div', { class: 'item', dataset: { id: song.id } }, handle, info, actions);
-      listEl.append(item);
-    }
+    const addRow = el('button', { class: 'addrow', onClick: openAddSheet });
+    addRow.append(icon(ICONS.plus, { sw: 2 }), el('span', null, '곡 추가'));
+    const newRow = el('button', { class: 'btn btn--primary btn--block', style: { marginTop: '8px' }, onClick: newSong }, '＋ 새 곡 만들기');
+    listEl.append(addRow, newRow);
   }
 
   async function duplicate(songId: string) {
@@ -138,14 +155,6 @@ export function createSetlistScreen(app: AppCtx): ScreenController {
   async function removeFromList(songId: string) {
     const active = store.getActiveSetlist();
     if (active) await store.removeSongFromSetlist(active.id, songId);
-  }
-
-  function renderFooter() {
-    clear(footer);
-    footer.append(
-      el('button', { class: 'btn btn--block', style: { flex: '1' }, onClick: openAddSheet }, '＋ 곡 추가'),
-      el('button', { class: 'btn btn--primary', style: { flex: '1' }, onClick: newSong }, '＋ 새 곡'),
-    );
   }
 
   function openAddSheet() {
@@ -183,9 +192,9 @@ export function createSetlistScreen(app: AppCtx): ScreenController {
   }
 
   function render() {
-    renderHeader();
+    renderChips();
+    renderMeta();
     renderList();
-    renderFooter();
   }
 
   return {

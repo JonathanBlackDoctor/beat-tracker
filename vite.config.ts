@@ -30,13 +30,13 @@ export default defineConfig({
       manifest: {
         name: '비트키퍼',
         short_name: '비트키퍼',
-        description: '밴드 퍼커션용 실시간 템포 보조 — 감지·메트로놈·셋리스트 (오프라인)',
+        description: '무대 위 실시간 템포 보조 — 펄스 링으로 0.5초 흘끗 판독',
         lang: 'ko',
         dir: 'ltr',
         display: 'standalone',
         orientation: 'any',
-        background_color: '#0a0a0c',
-        theme_color: '#0a0a0c',
+        background_color: '#0a0b0e',
+        theme_color: '#0a0b0e',
         start_url: '.',
         scope: '.',
         categories: ['music', 'utilities'],
@@ -53,6 +53,23 @@ export default defineConfig({
         navigateFallback: 'index.html',
         clientsClaim: true,
         skipWaiting: true,
+        // Google Fonts(Noto Sans KR · IBM Plex Mono): 첫 로드 후 런타임 캐시 → 오프라인 유지
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.origin === 'https://fonts.googleapis.com',
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'google-fonts-stylesheets' },
+          },
+          {
+            urlPattern: ({ url }) => url.origin === 'https://fonts.gstatic.com',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-webfonts',
+              expiration: { maxEntries: 24, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
       devOptions: {
         // 개발 중에도 SW 동작 → 오프라인 테스트 가능

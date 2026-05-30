@@ -4,7 +4,7 @@ import { store } from '../state/store.ts';
 import { uid } from '../state/store.ts';
 import { PulseRing } from '../render/pulseRing.ts';
 import { wakeLock } from '../pwa.ts';
-import { el, toast } from '../ui.ts';
+import { el, toast, icon, ICONS } from '../ui.ts';
 import type { AppCtx, ScreenController } from '../ui.ts';
 import type { Meter, Song, Session, SessionSample } from '../types.ts';
 import { mainBeatsPerBar } from '../types.ts';
@@ -25,55 +25,62 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
   let ring: PulseRing | null = null;
   let refreshTimer: number | null = null;
   let logAccum = 0;
+  let stageRO: ResizeObserver | null = null;
 
   // Phase 3 세션 로깅
   let session: (Session & { _t0: number }) | null = null;
 
-  // --- DOM ---
+  // --- DOM (확정 디자인: design_handoff bk-screen) ---
   const canvas = el('canvas') as HTMLCanvasElement;
-  const statusEl = el('div', { class: 'perf__status' });
-  const fsBtn = el('button', { class: 'btn btn--ghost iconbtn fs-toggle', title: '공연 모드', onClick: toggleFullscreen }, '⛶');
-  const fsHint = el('div', { class: 'fs-hint', style: { display: 'none' } }, '공연 모드 · 화면을 탭하면 컨트롤');
-  const stage = el('div', { class: 'perf__stage', onClick: onStageTap }, canvas, statusEl, fsBtn, fsHint);
 
-  const bpmVal = el('span', { class: 'val' }, '--');
-  const bpmEl = el('div', { class: 'perf__bpm' }, bpmVal, el('span', { class: 'unit' }, 'BPM'));
+  // 링 중앙 BPM 오버레이
+  const bpmVal = el('span', { class: 'val' }, '– –');
   const subEl = el('div', { class: 'perf__sub' }, '프리 모드');
-  const stabFill = el('div', { class: 'stability__fill' });
-  const stabEl = el('div', { class: 'stability' }, '안정도', el('div', { class: 'stability__bar' }, stabFill));
-  const readout = el('div', { class: 'perf__readout' }, bpmEl, subEl, stabEl);
-  const right = el('div', { class: 'perf__right' }, readout);
-  const main = el('div', { class: 'perf__main' }, stage, right);
+  const centerEl = el('div', { class: 'perf__center' }, el('div', { class: 'perf__num' }, bpmVal, el('span', { class: 'unit' }, 'BPM')), subEl);
+  // 안정도 오버레이 (점 아래)
+  const stabFill = el('div', { class: 'perf__stabfill' });
+  const stabEl = el('div', { class: 'perf__stab' }, el('span', { class: 'perf__stablbl' }, '안정도'), el('div', { class: 'perf__stabtrack' }, stabFill));
+  const fsHint = el('div', { class: 'fs-hint', style: { display: 'none' } }, '공연 모드 · 화면을 탭하면 컨트롤');
+  const stage = el('div', { class: 'perf__stage', onClick: onStageTap }, canvas, centerEl, stabEl, fsHint);
 
-  // 측정 모드
+  const statusEl = el('div', { class: 'perf__statusline' });
+
+  // 측정 모드 (세그먼트 + 프리 필)
   const segAlways = el('button', { onClick: () => setMeasureMode('always') }, '항상 측정');
   const segTap = el('button', { onClick: () => setMeasureMode('tap') }, '탭 측정');
-  const seg = el('div', { class: 'seg' }, segAlways, segTap);
-  const tapBtn = el('button', { class: 'btn', onClick: () => engine.startTapMeasure() }, '측정');
-  const freeBtn = el('button', { class: 'btn btn--ghost', onClick: toggleFree }, '프리');
-  const modeRow = el('div', { class: 'row row--wrap' }, seg, tapBtn, el('div', { class: 'spacer' }), freeBtn);
+  const seg = el('div', { class: 'seg', style: { flex: '1' } }, segAlways, segTap);
+  const freeBtn = el('button', { class: 'perf__pill', onClick: toggleFree }, '프리');
+  const modeRow = el('div', { class: 'row' }, seg, freeBtn);
+  const tapBtn = el('button', { class: 'btn btn--block', style: { display: 'none' }, onClick: () => engine.startTapMeasure() }, '측정');
 
   // 곡 이동
-  const prevBtn = el('button', { class: 'btn btn--ghost iconbtn', onClick: () => stepSong(-1) }, '◀');
-  const nextBtn = el('button', { class: 'btn btn--ghost iconbtn', onClick: () => stepSong(1) }, '▶');
+  const prevBtn = el('button', { class: 'perf__arrow', 'aria-label': '이전 곡', onClick: () => stepSong(-1) }, '‹');
+  const nextBtn = el('button', { class: 'perf__arrow', 'aria-label': '다음 곡', onClick: () => stepSong(1) }, '›');
   const songName = el('div', { class: 'perf__songname' }, '곡 없음');
   const songMeta = el('div', { class: 'perf__songmeta' }, '');
-  const songInfo = el('div', { class: 'item__main' }, songName, songMeta);
-  const songLine = el('div', { class: 'perf__songline' }, prevBtn, songInfo, nextBtn);
+  const songInfo = el('div', { class: 'perf__songinfo' }, songName, songMeta);
+  const songLine = el('div', { class: 'perf__songnav' }, prevBtn, songInfo, nextBtn);
 
   // 구간
   const sectionChip = el('span', { class: 'chip' }, '');
-  const nextSectionBtn = el('button', { class: 'btn', onClick: nextSection }, '다음 구간 ▶');
+  const nextSectionBtn = el('button', { class: 'btn', onClick: nextSection }, '다음 구간 ▸');
   const sectionLine = el('div', { class: 'row', style: { display: 'none' } }, sectionChip, el('div', { class: 'spacer' }), nextSectionBtn);
 
-  // 트랜스포트
-  const micBtn = el('button', { class: 'btn', onClick: onMic }, '🎤 마이크');
-  const playBtn = el('button', { class: 'btn btn--primary btn--big', onClick: toggleClick }, '▶ 재생');
-  const perfModeBtn = el('button', { class: 'btn btn--ghost', onClick: toggleFullscreen }, '공연모드');
+  // 트랜스포트 (마이크 · 재생 · 공연)
+  const micLbl = el('span', null, '마이크');
+  const micBtn = el('button', { class: 'perf__tbtn', onClick: onMic }, icon(ICONS.mic, { sw: 1.7 }), micLbl);
+  const playIco = el('span', { class: 'ico', style: { display: 'flex' } }, icon(ICONS.play, { fill: 'currentColor', stroke: 'none' }));
+  const playLbl = el('span', { class: 'lbl' }, '재생');
+  const playBtn = el('button', { class: 'perf__play', onClick: toggleClick }, playIco, playLbl);
+  const perfModeBtn = el('button', { class: 'perf__tbtn', onClick: toggleFullscreen }, icon(ICONS.expand, { sw: 1.7 }), el('span', null, '공연'));
   const transport = el('div', { class: 'perf__transport' }, micBtn, playBtn, perfModeBtn);
 
-  const controls = el('div', { class: 'perf__controls' }, modeRow, songLine, sectionLine, transport);
-  const root = el('div', { class: 'screen perf' }, main, controls);
+  const controls = el('div', { class: 'perf__controls' }, modeRow, tapBtn, songLine, sectionLine, transport);
+  const main = el('div', { class: 'perf__main' }, stage, controls);
+  const root = el('div', { class: 'screen perf' }, statusEl, main);
+
+  // 상단바 우측 공연 모드 버튼
+  const headerExpand = el('button', { class: 'iconbtn-sq', title: '공연 모드', onClick: toggleFullscreen }, icon(ICONS.expandCorners, { sw: 1.8 }));
 
   // --- 로직 ---
   function resolveActive(song: Song | undefined): Active {
@@ -124,8 +131,9 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
     segTap.classList.toggle('is-on', measureMode === 'tap');
     tapBtn.style.display = measureMode === 'tap' ? '' : 'none';
     freeBtn.classList.toggle('is-on', freeMode);
-    micBtn.classList.toggle('is-on', engine.micState === 'granted');
-    micBtn.textContent = engine.micState === 'granted' ? '🎤 켜짐' : '🎤 마이크';
+    const micOn = engine.micState === 'granted';
+    micBtn.classList.toggle('is-on', micOn);
+    micLbl.textContent = micOn ? '켜짐' : '마이크';
   }
 
   function toggleFree() {
@@ -161,9 +169,9 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
   }
   function updatePlayBtn() {
     const on = engine.clickRunning;
-    playBtn.textContent = on ? '■ 정지' : '▶ 재생';
-    playBtn.classList.toggle('btn--primary', !on);
-    playBtn.classList.toggle('btn--danger', on);
+    playBtn.classList.toggle('is-on', on);
+    playLbl.textContent = on ? '정지' : '재생';
+    playIco.replaceChildren(icon(on ? ICONS.pause : ICONS.play, { fill: 'currentColor', stroke: 'none' }));
   }
 
   function stepSong(dir: number) {
@@ -241,6 +249,7 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
   function toggleFullscreen() {
     const on = !document.body.classList.contains('fullscreen');
     document.body.classList.toggle('fullscreen', on);
+    root.classList.toggle('is-fullscreen', on);
     fsHint.style.display = on ? '' : 'none';
     if (on) {
       document.documentElement.requestFullscreen?.().catch(() => {});
@@ -248,7 +257,10 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
       if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
       controls.style.display = '';
     }
-    ring?.resize();
+    requestAnimationFrame(() => {
+      ring?.resize();
+      positionOverlays();
+    });
   }
   let peekTimer: number | null = null;
   function onStageTap() {
@@ -258,6 +270,16 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
     peekTimer = setTimeout(() => {
       if (document.body.classList.contains('fullscreen')) controls.style.display = '';
     }, 3000) as unknown as number;
+  }
+
+  // 링 기하에 맞춰 BPM/안정도 오버레이를 캔버스 위에 배치
+  function positionOverlays() {
+    if (!ring) return;
+    const g = ring.geom;
+    centerEl.style.left = `${g.cx}px`;
+    centerEl.style.top = `${g.cy}px`;
+    stabEl.style.left = `${g.cx}px`;
+    stabEl.style.top = `${g.stabY}px`;
   }
 
   // --- 갱신 루프 ---
@@ -270,7 +292,7 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
 
     // 숫자
     const show = st.status === 'ok' || st.detected > 0;
-    bpmVal.textContent = show ? String(Math.round(st.detected)) : '--';
+    bpmVal.textContent = show ? String(Math.round(st.detected)) : '– –';
     if (freeMode) {
       subEl.textContent = '프리 모드';
     } else if (st.status === 'ok' && st.delta != null) {
@@ -281,10 +303,9 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
       subEl.textContent = `목표 ${target}`;
     }
 
-    // 안정도
+    // 안정도 (design: 시안 그라데이션 고정, 폭만 변화)
     const stab = Math.round(st.stability * 100);
     stabFill.style.width = (st.status === 'ok' ? stab : 0) + '%';
-    stabFill.style.background = st.stability > 0.66 ? 'var(--green)' : st.stability > 0.33 ? 'var(--yellow)' : 'var(--red)';
 
     // 상태 표시
     setStatus(st.status);
@@ -338,6 +359,8 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
   return {
     el: root,
     title: '비트키퍼',
+    brand: true,
+    headerRight: headerExpand,
     show(params) {
       if (params && typeof params.songId === 'string') {
         loadSong(params.songId);
@@ -351,6 +374,7 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
       engine.setMeasureMode(measureMode);
       if (!ring) ring = new PulseRing(canvas, () => engine.getAudioTime());
       ring.resize();
+      positionOverlays();
       ring.clearPulses();
       engine.onPulse = (e) => ring?.pushPulse(e);
       ring.start();
@@ -358,6 +382,11 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
       updatePlayBtn();
       refresh();
       refreshTimer = setInterval(refresh, 80) as unknown as number;
+      // 무대 박스 변화(폰트 로드·컨트롤 리플로우·방향)에 맞춰 링/오버레이 재배치
+      if ('ResizeObserver' in window) {
+        stageRO = new ResizeObserver(() => onResize());
+        stageRO.observe(stage);
+      }
       window.addEventListener('resize', onResize);
       window.addEventListener('orientationchange', onResize);
     },
@@ -370,6 +399,8 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
       finalizeSession();
       updatePlayBtn();
       wakeLock.disable();
+      stageRO?.disconnect();
+      stageRO = null;
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
       if (document.body.classList.contains('fullscreen')) toggleFullscreen();
@@ -378,6 +409,7 @@ export function createPerformanceScreen(_app: AppCtx): ScreenController {
 
   function onResize() {
     ring?.resize();
+    positionOverlays();
   }
 }
 
