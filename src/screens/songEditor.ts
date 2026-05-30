@@ -1,7 +1,7 @@
 // 비트키퍼 — 곡 편집 화면 (브리프 §4.3)
 import { store, uid } from '../state/store.ts';
 import { engine } from '../audio/audioEngine.ts';
-import { el, clear, toast, openSheet, confirmAction } from '../ui.ts';
+import { el, clear, toast, openSheet, confirmAction, icon, ICONS } from '../ui.ts';
 import type { AppCtx, ScreenController } from '../ui.ts';
 import type { Song, Meter } from '../types.ts';
 import { METERS } from '../types.ts';
@@ -34,6 +34,14 @@ export function createSongEditorScreen(app: AppCtx): ScreenController {
       sel.appendChild(o);
     }
     return sel;
+  }
+
+  function meterSegment(getVal: () => Meter, setVal: (m: Meter) => void): HTMLElement {
+    const seg = el('div', { class: 'seg', style: { display: 'flex', width: '100%' } });
+    const paint = () => Array.from(seg.children).forEach((c) => (c as HTMLElement).classList.toggle('is-on', (c as HTMLElement).dataset.v === getVal()));
+    for (const m of METERS) seg.append(el('button', { dataset: { v: m }, onClick: () => { setVal(m); paint(); } }, m));
+    paint();
+    return seg;
   }
 
   function bpmStepper(getVal: () => number, setVal: (n: number) => void): HTMLElement {
@@ -74,7 +82,9 @@ export function createSongEditorScreen(app: AppCtx): ScreenController {
       );
       wrap.append(row);
     });
-    wrap.append(el('button', { class: 'btn btn--block', style: { marginTop: '6px' }, onClick: addSection }, '＋ 구간 추가'));
+    const addRow = el('button', { class: 'addrow', style: { marginTop: '6px' }, onClick: addSection });
+    addRow.append(icon(ICONS.plus, { sw: 2 }), el('span', null, '구간 추가'));
+    wrap.append(addRow);
     return wrap;
   }
 
@@ -144,7 +154,7 @@ export function createSongEditorScreen(app: AppCtx): ScreenController {
           el('button', { class: 'btn btn--ghost', style: { flex: '1' }, onClick: autoDetect }, '자동 인식'),
         ),
       ),
-      el('div', { class: 'field' }, el('label', null, '박자표'), meterSelect(draft.meter, false, (v) => (draft.meter = v as Meter))),
+      el('div', { class: 'field' }, el('label', null, '박자표'), meterSegment(() => draft.meter, (m) => (draft.meter = m))),
       el('div', { class: 'field' }, el('label', null, '메모 / 큐 (선택)'), el('textarea', { placeholder: '인트로 큐, 주의사항 등', value: draft.notes || '', onInput: (e: Event) => (draft.notes = (e.target as HTMLTextAreaElement).value) })),
       el('div', { class: 'divider' }),
       el('div', { class: 'section-title' }, '구간 (곡 중간 템포 변화)'),

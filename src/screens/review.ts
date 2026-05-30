@@ -76,7 +76,7 @@ export function createReviewScreen(_app: AppCtx): ScreenController {
     const legend = el('div', { class: 'legend' },
       el('span', null, el('i', { style: { background: 'var(--accent)' } }), '감지 BPM'),
       el('span', null, el('i', { style: { background: 'var(--muted)' } }), `목표 ${s.targetBpm}`),
-      el('span', null, el('i', { style: { background: 'rgba(52,211,153,0.5)' } }), `안정 구간(±${store.settings.greenThreshold})`),
+      el('span', null, el('i', { style: { background: 'rgba(79,209,165,0.55)' } }), `안정 구간(±${store.settings.greenThreshold})`),
     );
     const statRow = el('div', { class: 'row row--wrap', style: { marginTop: '10px', gap: '14px' } },
       stat('평균', `${st.avg.toFixed(1)} BPM`),
@@ -138,7 +138,7 @@ export function createReviewScreen(_app: AppCtx): ScreenController {
     const yOf = (bpm: number) => padT + (1 - (bpm - yMin) / (yMax - yMin)) * H;
 
     // 안정 구간 밴드
-    ctx.fillStyle = 'rgba(52,211,153,0.14)';
+    ctx.fillStyle = 'rgba(79,209,165,0.16)';
     ctx.fillRect(padL, yOf(target + g), W, yOf(target - g) - yOf(target + g));
 
     // 격자/축 라벨 (BPM)
