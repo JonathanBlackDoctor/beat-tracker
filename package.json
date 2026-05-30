@@ -9,7 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
-    "test:dsp": "node --experimental-strip-types tests/tempoEngine.test.ts"
+    "test:dsp": "node --experimental-strip-types tests/tempoEngine.test.ts && node --experimental-strip-types tests/onsetDsp.test.ts && node --experimental-strip-types tests/onsetToTempo.test.ts && node --experimental-strip-types tests/onsetParity.test.ts"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
